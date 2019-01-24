@@ -5,29 +5,21 @@ import cv2
 import os
 from sys import platform
 import numpy as np 
+import argparse
 import paho.mqtt.client as mqtt
 
-DEBUG_MQTT = False
-DEBUG_MAIN = False
-DEBUG_PROCESS_KEYPOINTS = False
+# Remember to add your installation path here
+# Adds directory of THIS script to OS PATH (to search for necessary DLLs & models)
+dir_path = os.path.dirname(os.path.realpath(__file__))
+sys.path.insert(1, dir_path + "\\op_cpu_only\\python\\openpose\\Release")
+os.environ['PATH']  = os.environ['PATH'] + ';' + dir_path + '/op_cpu_only/x64/Release;' +  dir_path + '/op_cpu_only/bin;'
 
-# numpy suppress sci notation, set 1 decimal place
-np.set_printoptions(suppress=True)
-np.set_printoptions(precision=1)
+try:
+    import pyopenpose as op 
+except:
+    raise Exception('Error: OpenPose library could not be found. Did you enable `BUILD_PYTHON` in CMake and have this Python script in the right folder?')
 
 
-waiting_for_target = True
-
-
-# mqtt setup
-ip = "131.179.28.219"
-port = 1883
-
-CONNECTED = False
-client = None 
-target_topic = 'gesture'
-return_topic = 'gesture_correct'
-target_gesture = "stop"
 
 def on_connect(client, userdata, flags, rc):
     print("Connected with rc: "+str(rc))
@@ -55,49 +47,14 @@ def on_message(client, userdata, msg):
 
 
 def connect_to_server(ip, port):
-    global client
+#    global client
     client = mqtt.Client(client_id = 'openpose')
     client.on_connect = on_connect
     client.on_message = on_message
     print("connect_to_server: target_gesture = "+target_gesture)
     client.connect(ip, port, 60)
     client.subscribe(target_topic, qos=0)
-
-connect_to_server(ip, port)
-client.loop_start()
-
-# Remember to add your installation path here
-# Adds directory of THIS script to OS PATH (to search for necessary DLLs & models)
-dir_path = os.path.dirname(os.path.realpath(__file__))
-sys.path.insert(1, dir_path + "/")
-
-# Parameters for OpenPose. Take a look at C++ OpenPose example for meaning of components. Ensure all below are filled
-try:
-    from openpose import *
-except:
-    raise Exception('Error: OpenPose library could not be found. Did you enable `BUILD_PYTHON` in CMake and have this Python script in the right folder?')
-
-params = dict()
-params["logging_level"] = 3
-params["output_resolution"] = "-1x-1"
-params["net_resolution"] = "-1x368"
-params["model_pose"] = "BODY_25"
-params["alpha_pose"] = 0.6
-params["scale_gap"] = 0.3
-params["scale_number"] = 1 
-params["render_threshold"] = 0.05
-# If GPU version is built, and multiple GPUs are available, set the ID here
-params["num_gpu_start"] = 0
-params["disable_blending"] = False
-# Ensure you point to the correct path where models are located
-params["default_model_folder"] = dir_path + "/models/"
-
-# Construct OpenPose object allocates GPU memory
-try:
-    openpose = OpenPose(params)
-except:
-    raise Exception('Error: OpenPose object could not be made with given params.')
-print("OpenPose object created.")
+    return client
 
 # reference for coordinates given in keypoints np array
 # (0,0)-------->(WIDTH,0)
@@ -193,78 +150,142 @@ class ProcessKeyPoints:
 
         return (isElbowsCorrect and isHandsCorrect)
 
-cv2.namedWindow("preview")
-cap = cv2.VideoCapture(0)
 
-if cap.isOpened():
-	rval, img = cap.read()
-else:
-	rval = False
+def main():
+    DEBUG_MQTT = False
+    DEBUG_MAIN = False
+    DEBUG_PROCESS_KEYPOINTS = False
+    MQTT_ENABLE = False
 
-WIDTH = cap.get(3)
-HEIGHT = cap.get(4)
-sep = WIDTH/10
+    # numpy suppress sci notation, set 1 decimal place
+    np.set_printoptions(suppress=True)
+    np.set_printoptions(precision=1)
 
-gestured = "none"
+    waiting_for_target = True
 
-if DEBUG_MAIN:
-    print("into loop:")
-    
-print WIDTH,HEIGHT
+    # mqtt setup
+    if MQTT_ENABLE:
+        ip = "131.179.28.219"
+        port = 1883
 
-if DEBUG_MQTT:
-    client.publish(return_topic, payload= ('HELLLOO'), qos=0, retain=False)
+        CONNECTED = False
+        target_topic = 'gesture'
+        return_topic = 'gesture_correct'
+        target_gesture = "stop"
 
-#while rval and not waiting_for_target:
-while rval:
-    # Read new image
-    rval, img = cap.read()
-    # Output keypoints and the image with the human skeleton blended on it
-    keypoints, output_image = openpose.forward(img, True)
+        client = connect_to_server(ip, port)
+        client.loop_start()
 
-    # Display the image
-    cv2.imshow("preview", output_image)
+    # Flags
+    parser = argparse.ArgumentParser()
+    # parser.add_argument("--image_path", default="../../../examples/media/COCO_val2014_000000000192.jpg", help="Process an image. Read all standard formats (jpg, png, bmp, etc.).")
+    args = parser.parse_known_args()
+
+    # Custom Params (refer to include/openpose/flags.hpp for more parameters)
+    params = dict()
+    params["model_folder"] = "models/"
+
+    # Add others in path?
+    for i in range(0, len(args[1])):
+        curr_item = args[1][i]
+        if i != len(args[1])-1: next_item = args[1][i+1]
+        else: next_item = "1"
+        if "--" in curr_item and "--" in next_item:
+            key = curr_item.replace('-','')
+            if key not in params:  params[key] = "1"
+        elif "--" in curr_item and "--" not in next_item:
+            key = curr_item.replace('-','')
+            if key not in params: params[key] = next_item
+
+    # Starting OpenPose
+    opWrapper = op.WrapperPython()
+    opWrapper.configure(params)
+    opWrapper.start()
+
+    cv2.namedWindow("preview")
+    cap = cv2.VideoCapture(0)
+
+    if cap.isOpened():
+        rval, img = cap.read()
+        print("cv open")
+    else:
+    	rval = False
+
+    WIDTH = cap.get(3)
+    HEIGHT = cap.get(4)
+    sep = WIDTH/10
+
+    gestured = "none"
 
     if DEBUG_MAIN:
-        print(keypoints.size)
+        print("into loop:")
+        
+    print(WIDTH,HEIGHT)
 
-    #check for gesture
-    # if keypoints.size > 0:
-    #     gesture = ProcessKeyPoints(keypoints, WIDTH, HEIGHT)
-    #     if (gesture.isTPose()):
-    #         print("TPOSE DETECTED...")
-    #         gestured = "TPose"
-    #         waiting_for_target = True
+    if MQTT_ENABLE and DEBUG_MQTT:
+        client.publish(return_topic, payload= ('HELLLOO'), qos=0, retain=False)
 
-    # with more gestures, %target_gesture from MQTT Unity
-    # waiting_for_target = False
-    # target_gesture = "tpose" 
-    if not waiting_for_target and keypoints.size > 0:
-        gesture = ProcessKeyPoints(keypoints, WIDTH, HEIGHT)
-        # print("checking for: "+target_gesture)
-        if ( gesture.checkFor(target_gesture)):
-            # send gesture correct to unity
-            client.publish(return_topic, payload= ('correct'), qos=0, retain=False)
-            # print("Correct")
-            waiting_for_target = True
+    #while rval and not waiting_for_target:
+    while rval:
+        # Read new image
+        rval, img = cap.read()
 
-    # if keypoints.size > 0:
-    #     nose_x = keypoints[0][0][0]
-    #     region = 10 - int(nose_x/sep)
-    # #print(region)
-    # client.publish('localization',  payload= (region), qos=0, retain=False)
+        # Process Image
+        datum = op.Datum()
+        #imageToProcess = cv2.imread(args[0].image_path)
+        #datum.cvInputData = imageToProcess
+        datum.cvInputData = img
+        opWrapper.emplaceAndPop([datum])
 
-    # Print the human pose keypoints, i.e., a [#people x #keypoints x 3]-dimensional numpy object with the keypoints of all the people on that image
-    # print(keypoints)
-    # print()
-    # print(keypoints.shape) # (1L, 25L, 3L)
+        # Display Image
+        # print("Body keypoints: \n" + str(datum.poseKeypoints))
+        # cv2.imshow("OpenPose 1.4.0 - Tutorial Python API", datum.cvOutputData)
+        # cv2.waitKey(0)
 
-    key = cv2.waitKey(20)
-    if key == 27:
-    	break
+        # get keypoints and the image with the human skeleton blended on it
+        keypoints = datum.poseKeypoints
 
-if DEBUG_MAIN:
-    print(gestured)
+        # Display the image
+        cv2.imshow("preview", datum.cvOutputData)
 
-cap.release()
-cv2.destroyWindow("preview")
+        if DEBUG_MAIN:
+            print(keypoints.size)
+
+        #check for gesture
+        
+        # with more gestures, %target_gesture from MQTT Unity
+        # waiting_for_target = False
+        # target_gesture = "tpose" 
+        if not waiting_for_target and keypoints.size > 0:
+            gesture = ProcessKeyPoints(keypoints, WIDTH, HEIGHT)
+            # print("checking for: "+target_gesture)
+            if ( gesture.checkFor(target_gesture)):
+                # send gesture correct to unity
+                if MQTT_ENABLE:
+                    client.publish(return_topic, payload= ('correct'), qos=0, retain=False)
+                print("{target_gesture}: Correct", target_gesture=target_gesture)
+                waiting_for_target = True
+
+        # if keypoints.size > 0:
+        #     nose_x = keypoints[0][0][0]
+        #     region = 10 - int(nose_x/sep)
+        # #print(region)
+        # client.publish('localization',  payload= (region), qos=0, retain=False)
+
+        # Print the human pose keypoints, i.e., a [#people x #keypoints x 3]-dimensional numpy object with the keypoints of all the people on that image
+        # print(keypoints)
+        # print()
+        # print(keypoints.shape) # (1L, 25L, 3L)
+
+        key = cv2.waitKey(20)
+        if key == 27:
+        	break
+
+    if DEBUG_MAIN:
+        print(gestured)
+
+    cap.release()
+    cv2.destroyWindow("preview")
+
+if __name__ == '__main__':
+    main()
