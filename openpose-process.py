@@ -23,6 +23,7 @@ except:
 
 def on_connect(client, userdata, flags, rc):
     print("Connected with rc: "+str(rc))
+    global CONNECTED
     CONNECTED = True
     if DEBUG_MQTT:
         print("target_gesture: "+target_gesture)
@@ -123,8 +124,8 @@ class ProcessKeyPoints:
         # print(self.TPoseKeypoints_y)
         # print(self.TPoseKeypoints_y1)
         # print("")
-
-        if (self.TPoseKeypoints_y.size >= 6) and (((self.TPoseKeypoints_y.max() - self.TPoseKeypoints_y.min()) / self.HEIGHT) < 0.1):
+        threshold = 0.1
+        if (self.TPoseKeypoints_y.size >= 6) and (((self.TPoseKeypoints_y.max() - self.TPoseKeypoints_y.min()) / self.HEIGHT) < threshold):
             print("detected tpose")
             return True
         else:
@@ -135,15 +136,16 @@ class ProcessKeyPoints:
         a = self.keypoints[0,elbow2elbow_indexes,1].flat
         self.elbowToElbow_y = a[a>0]
         
-        
+        threshold = 0.07
         isElbowsCorrect = False
-        if (self.elbowToElbow_y >= 4) and (((self.elbowToElbow_y.max() - self.elbowToElbow_y.min()) / self.HEIGHT) < 0.07):
+        if (self.elbowToElbow_y >= 4) and (((self.elbowToElbow_y.max() - self.elbowToElbow_y.min()) / self.HEIGHT) < threshold):
             isElbowsCorrect = True
 
-        threshhold = 0.07
         isHandsCorrect = False
-        if (self.keypoints[0,body25['RWrist'],0]-self.keypoints[0,body25['RElbow'],0]) < threshhold:
-            if (self.keypoints[0,body25['LWrist'],0]-self.keypoints[0,body25['LElbow'],0]) < threshhold:
+        # check if hand and elbox x coords are within in threshold
+        if (self.keypoints[0,body25['RWrist'],0]-self.keypoints[0,body25['RElbow'],0]) < threshold:
+            if (self.keypoints[0,body25['LWrist'],0]-self.keypoints[0,body25['LElbow'],0]) < threshold:
+                # check if wrists are above nose
                 if (self.keypoints[0,body25['RWrist'],1] < self.keypoints[0,body25['Nose'],1]):
                     if (self.keypoints[0,body25['LWrist'],1] < self.keypoints[0,body25['Nose'],1]):
                         isHandsCorrect = True
@@ -184,7 +186,9 @@ def main():
     # Custom Params (refer to include/openpose/flags.hpp for more parameters)
     params = dict()
     params["model_folder"] = "models/"
-
+    params["frame_flip"] = "True"
+    params["model_pose"] = "MPI_4_layers"
+    params["net_resolution"] = "-1x80"
     # Add others in path?
     for i in range(0, len(args[1])):
         curr_item = args[1][i]
@@ -234,7 +238,8 @@ def main():
         datum = op.Datum()
         #imageToProcess = cv2.imread(args[0].image_path)
         #datum.cvInputData = imageToProcess
-        datum.cvInputData = img
+        flipped = cv2.flip(img,1)
+        datum.cvInputData = flipped
         opWrapper.emplaceAndPop([datum])
 
         # Display Image
