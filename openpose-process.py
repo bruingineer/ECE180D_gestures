@@ -4,8 +4,10 @@ import sys
 import cv2
 import os
 from sys import platform
-import numpy as np 
 import argparse
+from collections import deque
+
+import numpy as np 
 import paho.mqtt.client as mqtt
 
 # Remember to add your installation path here
@@ -57,49 +59,52 @@ def connect_to_server(ip, port):
     client.subscribe(target_topic, qos=0)
     return client
 
-# reference for coordinates given in keypoints np array
-# (0,0)-------->(WIDTH,0)
-#   |               |
-#   |               |
-# (0,HEIGHT)--(WIDTH,HEIGHT)
+class keypointFrames:
+    # reference for coordinates given in keypoints np array
+    # (0,0)-------->(WIDTH,0)
+    #   |               |
+    #   |               |
+    # (0,HEIGHT)--(WIDTH,HEIGHT)
 
-# keypoints shape [people x parts x index] == (1L, 25L, 3L)
-# index[] = [x , y , confidence]
+    # keypoints shape [people x parts x index] == (1L, 25L, 3L)
+    # index[] = [x , y , confidence]
+    # keypoints for BODY_25
+    body25 = {
+        "Nose":      0,
+        "Neck":      1,
+        "RShoulder": 2,
+        "RElbow":    3,
+        "RWrist":    4,
+        "LShoulder": 5,
+        "LElbow":    6,
+        "LWrist":    7,
+        "MidHip":    8,
+        "RHip":      9,
+        "RKnee":    10,
+        "RAnkle":   11,
+        "LHip":     12,
+        "LKnee":    13,
+        "LAnkle":   14,
+        "REye":     15,
+        "LEye":     16,
+        "REar":     17,
+        "LEar":     18,
+        "LBigToe":  19,
+        "LSmallToe":20,
+        "LHeel":    21,
+        "RBigToe":  22,
+        "RSmallToe":23,
+        "RHeel":    24,
+        "Background":25
+    }
+    def __init__(self):
+        self.last_3_frames = deque(maxlen=3)
 
-# keypoints for BODY_25
-body25 = {
-    "Nose":      0,
-    "Neck":      1,
-    "RShoulder": 2,
-    "RElbow":    3,
-    "RWrist":    4,
-    "LShoulder": 5,
-    "LElbow":    6,
-    "LWrist":    7,
-    "MidHip":    8,
-    "RHip":      9,
-    "RKnee":    10,
-    "RAnkle":   11,
-    "LHip":     12,
-    "LKnee":    13,
-    "LAnkle":   14,
-    "REye":     15,
-    "LEye":     16,
-    "REar":     17,
-    "LEar":     18,
-    "LBigToe":  19,
-    "LSmallToe":20,
-    "LHeel":    21,
-    "RBigToe":  22,
-    "RSmallToe":23,
-    "RHeel":    24,
-    "Background":25
-}
-
-class ProcessKeyPoints:
-    def __init__(self, keypoints, inputWIDTH, inputHEIGHT):
+    def add(keypoints, inputWIDTH, inputHEIGHT):
         self.keypoints = np.array(keypoints)
-        self.num_people = self.keypoints.shape[1]
+        self.last_3_frames.append(self.keypoints)
+        #np.array(keypoints)
+        # self.num_people = self.keypoints.shape[1]
         self.WIDTH = inputWIDTH
         self.HEIGHT = inputHEIGHT
 
@@ -187,8 +192,8 @@ def main():
     params = dict()
     params["model_folder"] = "models/"
     params["frame_flip"] = "True"
-    params["model_pose"] = "MPI_4_layers"
-    params["net_resolution"] = "-1x80"
+    params["model_pose"] = "BODY_25"
+    params["net_resolution"] = "-1x64"
     # Add others in path?
     for i in range(0, len(args[1])):
         curr_item = args[1][i]
@@ -229,6 +234,7 @@ def main():
     if MQTT_ENABLE and DEBUG_MQTT:
         client.publish(return_topic, payload= ('HELLLOO'), qos=0, retain=False)
 
+    gesture = keypointFrames()
     #while rval and not waiting_for_target:
     while rval:
         # Read new image
@@ -262,7 +268,7 @@ def main():
         # waiting_for_target = False
         # target_gesture = "tpose" 
         if not waiting_for_target and keypoints.size > 0:
-            gesture = ProcessKeyPoints(keypoints, WIDTH, HEIGHT)
+            gesture.add(keypoints, WIDTH, HEIGHT)
             # print("checking for: "+target_gesture)
             if ( gesture.checkFor(target_gesture)):
                 # send gesture correct to unity
