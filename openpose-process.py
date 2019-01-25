@@ -157,7 +157,7 @@ class keypointFrames:
         # print(self.TPoseKeypoints_y1)
         # print("")
         threshold = 0.1
-        if (self.TPoseKeypoints_y.size >= 6) and (((self.TPoseKeypoints_y.max() - self.TPoseKeypoints_y.min()) / self.HEIGHT) < threshold):
+        if (self.TPoseKeypoints_y.size >= 6) and (abs(((self.TPoseKeypoints_y.max() - self.TPoseKeypoints_y.min()) / self.HEIGHT)) < threshold):
             print("detected tpose")
             return True
         else:
