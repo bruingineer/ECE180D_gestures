@@ -13,8 +13,8 @@ import paho.mqtt.client as mqtt
 # Remember to add your installation path here
 # Adds directory of THIS script to OS PATH (to search for necessary DLLs & models)
 dir_path = os.path.dirname(os.path.realpath(__file__))
-sys.path.insert(1, dir_path + "\\op_cpu_only\\python\\openpose\\Release")
-os.environ['PATH']  = os.environ['PATH'] + ';' + dir_path + '/op_cpu_only/x64/Release;' +  dir_path + '/op_cpu_only/bin;'
+sys.path.insert(1, dir_path + "\\op_cuda_jose\\python\\openpose\\Release")
+os.environ['PATH']  = os.environ['PATH'] + ';' + dir_path + '/op_cuda_jose/x64/Release;' +  dir_path + '/op_cuda_jose/bin;'
 
 try:
     import pyopenpose as op 
