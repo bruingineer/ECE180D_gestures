@@ -116,16 +116,19 @@ class keypointFrames:
     def isRightHandRightToLeftWave(self):
         x = []
         y = []
-        for i in range(len(self.last_3_frames)-1):
+        print("{0} length".format(len(self.last_3_frames)))
+        for i in range(len(self.last_3_frames)):
             frame = self.last_3_frames[i]
-            x.append(frame[0,[body25['RWrist']],0])
+            x.append(frame[0,body25['RWrist'],0])
             y.append(frame[0,body25['RWrist'],1])
+        print("x: {}".format(x))
         npx = np.array([z for z in x if z>0])
         npy = np.array([z for z in y if z>0])
-
+        print(npy)
+        print(npx)
         if len(npy) > 1:
             if ( ((npy.max() - npy.min())/self.HEIGHT) < 0.1 ):
-                if ( np.array_equal(np.sort(npx, axis=None), npx) ) and ( ((npx.max() - npx.min())/self.WIDTH) > 0.5 ):
+                if ( np.array_equal(np.sort(npx, axis=None)[::-1], npx) ) and ( ((npx.max() - npx.min())/self.WIDTH) > 0.5 ):
                     return True
         return False
 
@@ -276,8 +279,8 @@ def main():
         datum = op.Datum()
         #imageToProcess = cv2.imread(args[0].image_path)
         #datum.cvInputData = imageToProcess
-        flipped = cv2.flip(img,1)
-        datum.cvInputData = flipped
+        # flipped = cv2.flip(img,1)
+        datum.cvInputData = img
         opWrapper.emplaceAndPop([datum])
 
         # Display Image
@@ -289,7 +292,9 @@ def main():
         main_keypoints = datum.poseKeypoints
 
         # Display the image
-        cv2.imshow("preview", datum.cvOutputData)
+        flipped = cv2.flip(datum.cvOutputData,1)
+
+        cv2.imshow("preview", flipped)
 
         
         # print(main_keypoints.size)
