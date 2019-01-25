@@ -58,18 +58,7 @@ def connect_to_server(ip, port):
     client.connect(ip, port, 60)
     client.subscribe(target_topic, qos=0)
     return client
-
-class keypointFrames:
-    # reference for coordinates given in keypoints np array
-    # (0,0)-------->(WIDTH,0)
-    #   |               |
-    #   |               |
-    # (0,HEIGHT)--(WIDTH,HEIGHT)
-
-    # keypoints shape [people x parts x index] == (1L, 25L, 3L)
-    # index[] = [x , y , confidence]
-    # keypoints for BODY_25
-    body25 = {
+body25 = {
         "Nose":      0,
         "Neck":      1,
         "RShoulder": 2,
@@ -97,12 +86,31 @@ class keypointFrames:
         "RHeel":    24,
         "Background":25
     }
-    def __init__(self):
-        self.last_3_frames = deque(maxlen=3)
+class keypointFrames:
+    # reference for coordinates given in keypoints np array
+    # (0,0)-------->(WIDTH,0)
+    #   |               |
+    #   |               |
+    # (0,HEIGHT)--(WIDTH,HEIGHT)
 
-    def add(keypoints, inputWIDTH, inputHEIGHT):
-        self.keypoints = np.array(keypoints)
-        self.last_3_frames.append(self.keypoints)
+    # keypoints shape [people x parts x index] == (1L, 25L, 3L)
+    # index[] = [x , y , confidence]
+    # keypoints for BODY_25
+    
+    def __init__(self):
+        self.last_3_frames = []
+
+    def add(self, _keypoints, inputWIDTH, inputHEIGHT):
+        self.keypoints = np.array(_keypoints)
+        # print(self.keypoints)
+        # print('*********')
+        if len(self.last_3_frames) < 3:
+            self.last_3_frames.append(self.keypoints)
+            #print(self.last_3_frames)
+        else:
+            self.last_3_frames.pop(0)
+            self.last_3_frames.append(self.keypoints)
+
         #np.array(keypoints)
         # self.num_people = self.keypoints.shape[1]
         self.WIDTH = inputWIDTH
@@ -113,8 +121,28 @@ class keypointFrames:
             return self.isTPose()
         elif _target_gesture == "fieldgoal":
             return self.isFieldGoal()
+        elif _target_gesture == "rightHandWave":
+            return self.isRightHandRightToLeftWave()
         else:
             print("gesture "+_target_gesture+" not recognized.")
+
+    def isRightHandRightToLeftWave(self):
+        x = []
+        y = []
+        for i in range(len(self.last_3_frames)-1):
+            frame = self.last_3_frames[i]
+            x.append(frame[0,body25['RWrist'],0].flat[0])
+            y.append(frame[0,body25['RWrist'],1].flat[0])
+        npx = np.array([z for z in x if z>0])
+        npy = np.array([z for z in y if z>0])
+
+        if len(npy) > 1:
+            if ( ((npy.max() - npy.min())/self.HEIGHT) < 0.1 ):
+                if ( np.array_equal(np.sort(npx, axis=None), npx) ) and ( ((npx.max() - npx.min())/self.WIDTH) > 0.6 ):
+                    print("detected right hand wave")
+                    return True
+        return False
+
 
     # checks for arms straight out from sides, using passed in keypoints to class
     # returns true if in TPose
@@ -190,7 +218,7 @@ def main():
 
     # Custom Params (refer to include/openpose/flags.hpp for more parameters)
     params = dict()
-    params["model_folder"] = "models/"
+    params["model_folder"] = dir_path + "/models/"
     params["frame_flip"] = "True"
     params["model_pose"] = "BODY_25"
     params["net_resolution"] = "-1x64"
@@ -254,20 +282,20 @@ def main():
         # cv2.waitKey(0)
 
         # get keypoints and the image with the human skeleton blended on it
-        keypoints = datum.poseKeypoints
+        main_keypoints = datum.poseKeypoints
 
         # Display the image
         cv2.imshow("preview", datum.cvOutputData)
 
-        if DEBUG_MAIN:
-            print(keypoints.size)
+        
+        print(main_keypoints.size)
 
         #check for gesture
         
         # with more gestures, %target_gesture from MQTT Unity
-        # waiting_for_target = False
-        # target_gesture = "tpose" 
-        if not waiting_for_target and keypoints.size > 0:
+        waiting_for_target = False
+        target_gesture = "rightHandWave" 
+        if not waiting_for_target and main_keypoints.size > 0:
             gesture.add(keypoints, WIDTH, HEIGHT)
             # print("checking for: "+target_gesture)
             if ( gesture.checkFor(target_gesture)):
