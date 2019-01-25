@@ -10,19 +10,6 @@ from collections import deque
 import numpy as np 
 import paho.mqtt.client as mqtt
 
-# Remember to add your installation path here
-# Adds directory of THIS script to OS PATH (to search for necessary DLLs & models)
-dir_path = os.path.dirname(os.path.realpath(__file__))
-sys.path.insert(1, dir_path + "\\op_cuda_jose\\python\\openpose\\Release")
-os.environ['PATH']  = os.environ['PATH'] + ';' + dir_path + '/op_cuda_jose/x64/Release;' +  dir_path + '/op_cuda_jose/bin;'
-
-try:
-    import pyopenpose as op 
-except:
-    raise Exception('Error: OpenPose library could not be found. Did you enable `BUILD_PYTHON` in CMake and have this Python script in the right folder?')
-
-
-
 def on_connect(client, userdata, flags, rc):
     print("Connected with rc: "+str(rc))
     global CONNECTED
@@ -138,7 +125,7 @@ class keypointFrames:
 
         if len(npy) > 1:
             if ( ((npy.max() - npy.min())/self.HEIGHT) < 0.1 ):
-                if ( np.array_equal(np.sort(npx, axis=None), npx) ) and ( ((npx.max() - npx.min())/self.WIDTH) > 0.6 ):
+                if ( np.array_equal(np.sort(npx, axis=None), npx) ) and ( ((npx.max() - npx.min())/self.WIDTH) > 0.5 ):
                     return True
         return False
 
@@ -158,14 +145,14 @@ class keypointFrames:
         # print("")
         threshold = 0.1
         if (self.TPoseKeypoints_y.size >= 6) and (abs(((self.TPoseKeypoints_y.max() - self.TPoseKeypoints_y.min()) / self.HEIGHT)) < threshold):
-            print("detected tpose")
+            # print("detected tpose")
             return True
         else:
             return False
 
     def isFieldGoal(self):
         elbow2elbow_indexes = [body25[x] for x in ['Neck','RShoulder','RElbow','LElbow','LShoulder']]
-        print(self.keypoints.size)
+        # print(self.keypoints.size)
         a = self.keypoints[0,elbow2elbow_indexes,1].flat
         self.elbowToElbow_y = a[a>0]
         
@@ -177,11 +164,11 @@ class keypointFrames:
         isHandsCorrect = False
         # check if hand and elbox x coords are within in threshold
         if np.count_nonzero(self.keypoints[0,[body25[x] for x in ['RElbow','RWrist','LWrist','LElbow']],0]) == 4:
-            print('non zero check')
+            # print('non zero check')
             if (abs(self.keypoints[0,body25['RWrist'],0]-self.keypoints[0,body25['RElbow'],0]) / self.WIDTH) < threshold:
-                print("Right pass")
+                # print("Right pass")
                 if (abs(self.keypoints[0,body25['LWrist'],0]-self.keypoints[0,body25['LElbow'],0]) / self.WIDTH) < threshold:
-                    print('left pass')
+                    # print('left pass')
                     # check if wrists are above nose
                     if (self.keypoints[0,body25['RWrist'],1] < self.keypoints[0,body25['Nose'],1]):
                         if (self.keypoints[0,body25['LWrist'],1] < self.keypoints[0,body25['Nose'],1]):
@@ -218,7 +205,20 @@ def main():
     # Flags
     parser = argparse.ArgumentParser()
     # parser.add_argument("--image_path", default="../../../examples/media/COCO_val2014_000000000192.jpg", help="Process an image. Read all standard formats (jpg, png, bmp, etc.).")
+    parser.add_argument("--op", default='op_cuda_jose')
     args = parser.parse_known_args()
+
+    # Remember to add your installation path here
+    # Adds directory of THIS script to OS PATH (to search for necessary DLLs & models)
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    sys.path.insert(1, dir_path + "\\" + args[0].op +"\\python\\openpose\\Release")
+    os.environ['PATH']  = os.environ['PATH'] + ';' + dir_path + '/' + args[0].op + '/x64/Release;' +  dir_path + '/' + args[0].op +'/bin;'
+
+    try:
+        import pyopenpose as op 
+    except:
+        raise Exception('Error: OpenPose library could not be found. Did you enable `BUILD_PYTHON` in CMake and have this Python script in the right folder?')
+
 
     # Custom Params (refer to include/openpose/flags.hpp for more parameters)
     params = dict()
@@ -292,14 +292,14 @@ def main():
         cv2.imshow("preview", datum.cvOutputData)
 
         
-        print(main_keypoints.size)
-        print(main_keypoints)
+        # print(main_keypoints.size)
+        # print(main_keypoints)
 
         #check for gesture
         
         # with more gestures, %target_gesture from MQTT Unity
         waiting_for_target = False
-        target_gesture = "fieldgoal" 
+        target_gesture = "rightHandWave" 
         if not waiting_for_target and main_keypoints.size > 1:
             gesture.add(main_keypoints, WIDTH, HEIGHT)
             # print("checking for: "+target_gesture)
