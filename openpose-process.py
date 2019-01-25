@@ -165,22 +165,27 @@ class keypointFrames:
 
     def isFieldGoal(self):
         elbow2elbow_indexes = [body25[x] for x in ['Neck','RShoulder','RElbow','LElbow','LShoulder']]
+        print(self.keypoints.size)
         a = self.keypoints[0,elbow2elbow_indexes,1].flat
         self.elbowToElbow_y = a[a>0]
         
-        threshold = 0.07
+        threshold = 0.2
         isElbowsCorrect = False
         if (self.elbowToElbow_y.size >= 4) and (abs(((self.elbowToElbow_y.max() - self.elbowToElbow_y.min()) / self.HEIGHT)) < 0.2):
             isElbowsCorrect = True
 
         isHandsCorrect = False
         # check if hand and elbox x coords are within in threshold
-        if (abs(self.keypoints[0,body25['RWrist'],0]-self.keypoints[0,body25['RElbow'],0])) < threshold:
-            if (abs(self.keypoints[0,body25['LWrist'],0]-self.keypoints[0,body25['LElbow'],0])) < threshold:
-                # check if wrists are above nose
-                if (self.keypoints[0,body25['RWrist'],1] < self.keypoints[0,body25['Nose'],1]):
-                    if (self.keypoints[0,body25['LWrist'],1] < self.keypoints[0,body25['Nose'],1]):
-                        isHandsCorrect = True
+        if np.count_nonzero(self.keypoints[0,[body25[x] for x in ['RElbow','RWrist','LWrist','LElbow']],0]) == 4:
+            print('non zero check')
+            if (abs(self.keypoints[0,body25['RWrist'],0]-self.keypoints[0,body25['RElbow'],0]) / self.WIDTH) < threshold:
+                print("Right pass")
+                if (abs(self.keypoints[0,body25['LWrist'],0]-self.keypoints[0,body25['LElbow'],0]) / self.WIDTH) < threshold:
+                    print('left pass')
+                    # check if wrists are above nose
+                    if (self.keypoints[0,body25['RWrist'],1] < self.keypoints[0,body25['Nose'],1]):
+                        if (self.keypoints[0,body25['LWrist'],1] < self.keypoints[0,body25['Nose'],1]):
+                            isHandsCorrect = True
 
         return (isElbowsCorrect and isHandsCorrect)
 
@@ -220,7 +225,7 @@ def main():
     params["model_folder"] = dir_path + "/models/"
     params["frame_flip"] = "True"
     params["model_pose"] = "BODY_25"
-    params["net_resolution"] = "-1x64"
+    params["net_resolution"] = "-1x96"
     # Add others in path?
     for i in range(0, len(args[1])):
         curr_item = args[1][i]
@@ -288,13 +293,14 @@ def main():
 
         
         print(main_keypoints.size)
+        print(main_keypoints)
 
         #check for gesture
         
         # with more gestures, %target_gesture from MQTT Unity
         waiting_for_target = False
         target_gesture = "fieldgoal" 
-        if not waiting_for_target and main_keypoints.size > 0:
+        if not waiting_for_target and main_keypoints.size > 1:
             gesture.add(main_keypoints, WIDTH, HEIGHT)
             # print("checking for: "+target_gesture)
             if ( gesture.checkFor(target_gesture)):
