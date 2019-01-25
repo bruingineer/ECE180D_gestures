@@ -131,15 +131,14 @@ class keypointFrames:
         y = []
         for i in range(len(self.last_3_frames)-1):
             frame = self.last_3_frames[i]
-            x.append(frame[0,body25['RWrist'],0].flat[0])
-            y.append(frame[0,body25['RWrist'],1].flat[0])
+            x.append(frame[0,[body25['RWrist']],0])
+            y.append(frame[0,body25['RWrist'],1])
         npx = np.array([z for z in x if z>0])
         npy = np.array([z for z in y if z>0])
 
         if len(npy) > 1:
             if ( ((npy.max() - npy.min())/self.HEIGHT) < 0.1 ):
                 if ( np.array_equal(np.sort(npx, axis=None), npx) ) and ( ((npx.max() - npx.min())/self.WIDTH) > 0.6 ):
-                    print("detected right hand wave")
                     return True
         return False
 
@@ -171,13 +170,13 @@ class keypointFrames:
         
         threshold = 0.07
         isElbowsCorrect = False
-        if (self.elbowToElbow_y >= 4) and (((self.elbowToElbow_y.max() - self.elbowToElbow_y.min()) / self.HEIGHT) < threshold):
+        if (self.elbowToElbow_y.size >= 4) and (abs(((self.elbowToElbow_y.max() - self.elbowToElbow_y.min()) / self.HEIGHT)) < 0.2):
             isElbowsCorrect = True
 
         isHandsCorrect = False
         # check if hand and elbox x coords are within in threshold
-        if (self.keypoints[0,body25['RWrist'],0]-self.keypoints[0,body25['RElbow'],0]) < threshold:
-            if (self.keypoints[0,body25['LWrist'],0]-self.keypoints[0,body25['LElbow'],0]) < threshold:
+        if (abs(self.keypoints[0,body25['RWrist'],0]-self.keypoints[0,body25['RElbow'],0])) < threshold:
+            if (abs(self.keypoints[0,body25['LWrist'],0]-self.keypoints[0,body25['LElbow'],0])) < threshold:
                 # check if wrists are above nose
                 if (self.keypoints[0,body25['RWrist'],1] < self.keypoints[0,body25['Nose'],1]):
                     if (self.keypoints[0,body25['LWrist'],1] < self.keypoints[0,body25['Nose'],1]):
@@ -294,15 +293,15 @@ def main():
         
         # with more gestures, %target_gesture from MQTT Unity
         waiting_for_target = False
-        target_gesture = "rightHandWave" 
+        target_gesture = "fieldgoal" 
         if not waiting_for_target and main_keypoints.size > 0:
-            gesture.add(keypoints, WIDTH, HEIGHT)
+            gesture.add(main_keypoints, WIDTH, HEIGHT)
             # print("checking for: "+target_gesture)
             if ( gesture.checkFor(target_gesture)):
                 # send gesture correct to unity
                 if MQTT_ENABLE:
                     client.publish(return_topic, payload= ('correct'), qos=0, retain=False)
-                print("{target_gesture}: Correct", target_gesture=target_gesture)
+                print("{target_gesture}: Correct".format(target_gesture=target_gesture))
                 waiting_for_target = True
 
         # if keypoints.size > 0:
