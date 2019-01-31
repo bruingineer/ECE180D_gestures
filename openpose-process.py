@@ -6,16 +6,17 @@ import os
 from sys import platform
 import argparse
 from collections import deque
+from time import time
 
 import numpy as np 
 import paho.mqtt.client as mqtt
 
 def on_connect(client, userdata, flags, rc):
     print("Connected with rc: "+str(rc))
-    global CONNECTED
-    CONNECTED = True
+    print("Connection returned result: {}".format(connack_string(rc)))
+    client.isConnected = True
     if DEBUG_MQTT:
-        print("target_gesture: "+target_gesture)
+        print("DEBUG_MQTT * on_connect: target_gesture: "+target_gesture)
 
 
 def on_message(client, userdata, msg):
@@ -26,7 +27,7 @@ def on_message(client, userdata, msg):
         target_gesture = str(msg.payload)
         
         if DEBUG_MQTT:
-            print("MQTT.on_message: message from "+msp.topic+"\ntarget_gesture="+target_gesture)
+            print("DEBUG_MQTT * on_message: message from "+msp.topic+"\ntarget_gesture="+target_gesture)
 
         if target_gesture == "stop":
             waiting_for_target = True
@@ -45,6 +46,7 @@ def connect_to_server(ip, port):
     client.connect(ip, port, 60)
     client.subscribe(target_topic, qos=0)
     return client
+
 body25 = {
         "Nose":      0,
         "Neck":      1,
@@ -83,7 +85,11 @@ class keypointFrames:
     # keypoints shape [people x parts x index] == (1L, 25L, 3L)
     # index[] = [x , y , confidence]
     # keypoints for BODY_25
-    
+    # class _frame:
+    #     def __init__(self, kps):
+    #         self.keypoints = kps
+    #         self.timestamp = time() 
+
     def __init__(self):
         self.last_3_frames = []
 
@@ -92,11 +98,11 @@ class keypointFrames:
         # print(self.keypoints)
         # print('*********')
         if len(self.last_3_frames) < 3:
-            self.last_3_frames.append(self.keypoints)
+            self.last_3_frames.append((time(),self.keypoints))
             #print(self.last_3_frames)
         else:
             self.last_3_frames.pop(0)
-            self.last_3_frames.append(self.keypoints)
+            self.last_3_frames.append((time(),self.keypoints))
 
         #np.array(keypoints)
         # self.num_people = self.keypoints.shape[1]
@@ -110,6 +116,10 @@ class keypointFrames:
             return self.isFieldGoal()
         elif _target_gesture == "rightHandWave":
             return self.isRightHandRightToLeftWave()
+        elif _target_gesture == "leftHandRaise":
+            return self.isRaiseLeftHand()
+        elif _target_gesture == "rightHandRaise":
+            return self.isRaiseRightHand()
         else:
             print("gesture "+_target_gesture+" not recognized.")
 
@@ -118,17 +128,17 @@ class keypointFrames:
         y = []
         print("{0} length".format(len(self.last_3_frames)))
         for i in range(len(self.last_3_frames)):
-            frame = self.last_3_frames[i]
+            frame = self.last_3_frames[i][1]
             x.append(frame[0,body25['RWrist'],0])
             y.append(frame[0,body25['RWrist'],1])
-        print("x: {}".format(x))
+        print("x: {0}".format(x))
         npx = np.array([z for z in x if z>0])
         npy = np.array([z for z in y if z>0])
-        print(npy)
-        print(npx)
+        # print(npy)
+        # print(npx)
         if len(npy) > 1:
-            if ( ((npy.max() - npy.min())/self.HEIGHT) < 0.1 ):
-                if ( np.array_equal(np.sort(npx, axis=None)[::-1], npx) ) and ( ((npx.max() - npx.min())/self.WIDTH) > 0.5 ):
+            if ( ((npy.max() - npy.min())/self.HEIGHT) < 0.3 ):
+                if ( np.array_equal(np.sort(npx, axis=None)[::-1], npx) ) and ( ((npx.max() - npx.min())/self.WIDTH) > 0.4 ):
                     return True
         return False
 
@@ -139,17 +149,20 @@ class keypointFrames:
         # 1D array: y of [body25 1 thru 7]
         # self.TPoseKeypoints_y = self.keypoints[0,1:8,1][ self.keypoints[0,1:8,1].flat > 0 ]
         # OR
-        parts = [body25[x] for x in ['Neck','RShoulder','RElbow','RWrist','LWrist','LElbow','LShoulder']]
+        parts = [body25[x] for x in ['RWrist','RElbow','RShoulder','Neck','LShoulder','LElbow','LWrist']]
         a = self.keypoints[0, parts, 1].flat
-        self.TPoseKeypoints_y = a[a > 0]
-
+        TPoseKeypoints_y = a[a > 0]
+        a = self.keypoints[0, parts, 0].flat
+        TPoseKeypoints_x = a[a > 0]
         # print(self.TPoseKeypoints_y)
         # print(self.TPoseKeypoints_y1)
         # print("")
         threshold = 0.1
-        if (self.TPoseKeypoints_y.size >= 6) and (abs(((self.TPoseKeypoints_y.max() - self.TPoseKeypoints_y.min()) / self.HEIGHT)) < threshold):
+        if (TPoseKeypoints_y.size >= 6) and (abs(((TPoseKeypoints_y.max() - TPoseKeypoints_y.min()) / self.HEIGHT)) < threshold):
             # print("detected tpose")
-            return True
+            print("testing for x order")
+            if (np.array_equal(np.sort(TPoseKeypoints_x, axis=None), TPoseKeypoints_x)):
+                return True
         else:
             return False
 
@@ -177,8 +190,39 @@ class keypointFrames:
                         if (self.keypoints[0,body25['LWrist'],1] < self.keypoints[0,body25['Nose'],1]):
                             isHandsCorrect = True
 
-        return (isElbowsCorrect and isHandsCorrect)
+    def isRaiseLeftHand(self):
+        indexes = [body25[x] for x in ['LElbow','LShoulder','LWrist']]
+        # print(self.keypoints.size)
+        a = self.keypoints[0,indexes,1].flat
+        y = a[a>0]
+        a = self.keypoints[0,indexes,0].flat
+        x = a[a>0]
+        
+        #checking for low change in x ==> arm is straight up
+        threshold = 0.2
+        if ( y.size == 3 ) and (abs(((x.max() - x.min()) / self.HEIGHT)) < threshold):
+            # check if wrists are above nose
+            if (self.keypoints[0,body25['LWrist'],1] < self.keypoints[0,body25['Nose'],1]):
+                return True
 
+        return False
+
+    def isRaiseRightHand(self):
+        indexes = [body25[x] for x in ['RElbow','RShoulder','RWrist']]
+        # print(self.keypoints.size)
+        a = self.keypoints[0,indexes,1].flat
+        y = a[a>0]
+        a = self.keypoints[0,indexes,0].flat
+        x = a[a>0]
+        
+        #checking for low change in x ==> arm is straight up
+        threshold = 0.2
+        if ( y.size == 3 ) and (abs(((x.max() - x.min()) / self.HEIGHT)) < threshold):
+            # check if wrists are above nose
+            if (self.keypoints[0,body25['RWrist'],1] < self.keypoints[0,body25['Nose'],1]):
+                return True
+
+        return False
 
 def main():
     DEBUG_MQTT = False
@@ -197,7 +241,6 @@ def main():
         ip = "131.179.28.219"
         port = 1883
 
-        CONNECTED = False
         target_topic = 'gesture'
         return_topic = 'gesture_correct'
         target_gesture = "stop"
@@ -208,14 +251,17 @@ def main():
     # Flags
     parser = argparse.ArgumentParser()
     # parser.add_argument("--image_path", default="../../../examples/media/COCO_val2014_000000000192.jpg", help="Process an image. Read all standard formats (jpg, png, bmp, etc.).")
-    parser.add_argument("--op", default='op_cuda_jose')
+    parser.add_argument("--op_dir", default='op_cuda_jose', help="Path to compiled OpenPose library \
+        folder which includes the lib, x64/Release, and python folders.")
+    parser.add_argument("--gesture", default=None, help="Target Gesture to search for during testing.")
+    parser.add_argument("--localization", default=False, help="Add argument to use this script for localization.")
     args = parser.parse_known_args()
 
     # Remember to add your installation path here
     # Adds directory of THIS script to OS PATH (to search for necessary DLLs & models)
     dir_path = os.path.dirname(os.path.realpath(__file__))
-    sys.path.insert(1, dir_path + "\\" + args[0].op +"\\python\\openpose\\Release")
-    os.environ['PATH']  = os.environ['PATH'] + ';' + dir_path + '/' + args[0].op + '/x64/Release;' +  dir_path + '/' + args[0].op +'/bin;'
+    sys.path.insert(1, dir_path + "\\" + args[0].op_dir +"\\python\\openpose\\Release")
+    os.environ['PATH']  = os.environ['PATH'] + ';' + dir_path + '/' + args[0].op_dir + '/x64/Release;' +  dir_path + '/' + args[0].op_dir +'/bin;'
 
     try:
         import pyopenpose as op 
@@ -226,9 +272,9 @@ def main():
     # Custom Params (refer to include/openpose/flags.hpp for more parameters)
     params = dict()
     params["model_folder"] = dir_path + "/models/"
-    params["frame_flip"] = "True"
+    #params["frame_flip"] = "True"
     params["model_pose"] = "BODY_25"
-    params["net_resolution"] = "-1x96"
+    params["net_resolution"] = "-1x160"
     # Add others in path?
     for i in range(0, len(args[1])):
         curr_item = args[1][i]
@@ -246,7 +292,7 @@ def main():
     opWrapper.configure(params)
     opWrapper.start()
 
-    cv2.namedWindow("preview")
+    cv2.namedWindow("Synchro - Gesture processing with OpenPose")
     cap = cv2.VideoCapture(0)
 
     if cap.isOpened():
@@ -258,8 +304,6 @@ def main():
     WIDTH = cap.get(3)
     HEIGHT = cap.get(4)
     sep = WIDTH/10
-
-    gestured = "none"
 
     if DEBUG_MAIN:
         print("into loop:")
@@ -277,64 +321,47 @@ def main():
 
         # Process Image
         datum = op.Datum()
-        #imageToProcess = cv2.imread(args[0].image_path)
-        #datum.cvInputData = imageToProcess
-        # flipped = cv2.flip(img,1)
         datum.cvInputData = img
-        opWrapper.emplaceAndPop([datum])
-
-        # Display Image
-        # print("Body keypoints: \n" + str(datum.poseKeypoints))
-        # cv2.imshow("OpenPose 1.4.0 - Tutorial Python API", datum.cvOutputData)
-        # cv2.waitKey(0)
+        opWrapper.emplaceAndPop([datum])        
 
         # get keypoints and the image with the human skeleton blended on it
         main_keypoints = datum.poseKeypoints
 
         # Display the image
         flipped = cv2.flip(datum.cvOutputData,1)
+        cv2.imshow("Synchro - Gesture processing with OpenPose", flipped)
 
-        cv2.imshow("preview", flipped)
-
-        
-        # print(main_keypoints.size)
-        # print(main_keypoints)
-
-        #check for gesture
-        
-        # with more gestures, %target_gesture from MQTT Unity
-        waiting_for_target = False
-        target_gesture = "rightHandWave" 
+        # check for gesture
+        # with more gestures, _target_gesture from MQTT Unity
+        if args[0].gesture is not None:
+            waiting_for_target = False
+            target_gesture = args[0].gesture 
         if not waiting_for_target and main_keypoints.size > 1:
             gesture.add(main_keypoints, WIDTH, HEIGHT)
             # print("checking for: "+target_gesture)
-            if ( gesture.checkFor(target_gesture)):
+            if ( gesture.checkFor(target_gesture) ):
                 # send gesture correct to unity
                 if MQTT_ENABLE:
                     client.publish(return_topic, payload= ('correct'), qos=0, retain=False)
                 print("{target_gesture}: Correct".format(target_gesture=target_gesture))
                 waiting_for_target = True
 
-        # if keypoints.size > 0:
-        #     nose_x = keypoints[0][0][0]
-        #     region = 10 - int(nose_x/sep)
-        # #print(region)
-        # client.publish('localization',  payload= (region), qos=0, retain=False)
+        # if using this script for localization
+        if args[0].localization:
+            if main_keypoints.size > 1:
+                nose_x = main_keypoints[0][0][0]
+                region = 10 - int(nose_x/sep)
+            #print(region)
+            if MQTT_ENABLE:
+                client.publish('localization',  payload= (region), qos=0, retain=False)
 
-        # Print the human pose keypoints, i.e., a [#people x #keypoints x 3]-dimensional numpy object with the keypoints of all the people on that image
-        # print(keypoints)
-        # print()
-        # print(keypoints.shape) # (1L, 25L, 3L)
-
+        # break loop and exit when ESC key is pressed
         key = cv2.waitKey(20)
         if key == 27:
         	break
 
-    if DEBUG_MAIN:
-        print(gestured)
-
     cap.release()
-    cv2.destroyWindow("preview")
+    cv2.destroyWindow("Synchro - Gesture processing with OpenPose")
 
 if __name__ == '__main__':
     main()
