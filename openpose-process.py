@@ -292,44 +292,69 @@ def main():
     opWrapper.configure(params)
     opWrapper.start()
 
-    cv2.namedWindow("Synchro - Gesture processing with OpenPose")
-    cap = cv2.VideoCapture(0)
+    cv2.namedWindow("Synchro - Player 0")
+    cv2.namedWindow("Synchro - Player 1")
+    cap0 = cv2.VideoCapture(0)
+    cap1 = cv2.VideoCapture(1)
 
-    if cap.isOpened():
-        rval, img = cap.read()
-        print("cv open")
+    if cap0.isOpened():
+        rval0, img0 = cap0.read()
+        print("cap0 open")
     else:
-    	rval = False
+    	rval0 = False
 
-    WIDTH = cap.get(3)
-    HEIGHT = cap.get(4)
-    sep = WIDTH/10
+    if cap1.isOpened():
+        rval1, img1 = cap1.read()
+        print("cap1 open")
+    else:
+        rval1 = False
+
+
+
+    WIDTH0 = cap0.get(3)
+    HEIGHT0 = cap0.get(4)
+    sep0 = WIDTH0/10
+
+    WIDTH1 = cap1.get(3)
+    HEIGHT1 = cap1.get(4)
+    sep1 = WIDTH1/10
 
     if DEBUG_MAIN:
         print("into loop:")
         
-    print(WIDTH,HEIGHT)
+    print("0 w x h: {0} x {1}".format(WIDTH0,HEIGHT0))
+    print("1 w x h: {0} x {1}".format(WIDTH1,HEIGHT1))
 
     if MQTT_ENABLE and DEBUG_MQTT:
         client.publish(return_topic, payload= ('HELLLOO'), qos=0, retain=False)
 
-    gesture = keypointFrames()
+    gesture0 = keypointFrames()
+    gesture1 = keypointFrames()
+
     #while rval and not waiting_for_target:
-    while rval:
+    while rval0 and rval1:
         # Read new image
-        rval, img = cap.read()
+        rval0, img0 = cap0.read()
+        rval1, img1 = cap1.read()
 
         # Process Image
-        datum = op.Datum()
-        datum.cvInputData = img
-        opWrapper.emplaceAndPop([datum])        
+        datum0 = op.Datum()
+        datum0.cvInputData = img0
+        opWrapper.emplaceAndPop([datum0])        
+
+        datum1 = op.Datum()
+        datum1.cvInputData = img1
+        opWrapper.emplaceAndPop([datum1])
 
         # get keypoints and the image with the human skeleton blended on it
-        main_keypoints = datum.poseKeypoints
+        main_keypoints = datum0.poseKeypoints
+        keypoints_1 = datum1.poseKeypoints
 
         # Display the image
-        flipped = cv2.flip(datum.cvOutputData,1)
-        cv2.imshow("Synchro - Gesture processing with OpenPose", flipped)
+        flipped0 = cv2.flip(datum0.cvOutputData, 1)
+        cv2.imshow("Synchro - Player 0", flipped0)
+        flipped_1 = cv2.flip(datum1.cvOutputData, 1)
+        cv2.imshow("Synchro - Player 1", flipped_1)
 
         # check for gesture
         # with more gestures, _target_gesture from MQTT Unity
@@ -337,9 +362,9 @@ def main():
             waiting_for_target = False
             target_gesture = args[0].gesture 
         if not waiting_for_target and main_keypoints.size > 1:
-            gesture.add(main_keypoints, WIDTH, HEIGHT)
+            gesture0.add(main_keypoints, WIDTH, HEIGHT)
             # print("checking for: "+target_gesture)
-            if ( gesture.checkFor(target_gesture) ):
+            if ( gesture0.checkFor(target_gesture) ):
                 # send gesture correct to unity
                 if MQTT_ENABLE:
                     client.publish(return_topic, payload= ('correct'), qos=0, retain=False)
@@ -360,8 +385,10 @@ def main():
         if key == 27:
         	break
 
-    cap.release()
-    cv2.destroyWindow("Synchro - Gesture processing with OpenPose")
+    cap0.release()
+    cap1.release()
+    cv2.destroyWindow("Synchro - Player 1")
+    cv2.destroyWindow("Synchro - Player 0")
 
 if __name__ == '__main__':
     main()
