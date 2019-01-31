@@ -362,7 +362,7 @@ def main():
             waiting_for_target = False
             target_gesture = args[0].gesture 
         if not waiting_for_target and main_keypoints.size > 1:
-            gesture0.add(main_keypoints, WIDTH, HEIGHT)
+            gesture0.add(main_keypoints, WIDTH0, HEIGHT0)
             # print("checking for: "+target_gesture)
             if ( gesture0.checkFor(target_gesture) ):
                 # send gesture correct to unity
