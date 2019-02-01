@@ -7,6 +7,7 @@ from sys import platform
 import argparse
 from collections import deque
 from time import time
+from threading import Thread
 
 import numpy as np 
 import paho.mqtt.client as mqtt
@@ -361,6 +362,14 @@ def main():
     opWrapper.configure(params)
     opWrapper.start()
 
+    thread_0 = Thread(target=op_thread, args = ([opWrapper,0], ))
+    thread_1 = Thread(target=op_thread, args = ([opWrapper,1], ))
+    thread_0.start()
+    thread_1.start()
+    thread_0.join()
+    thread_1.join()
+
+    exit()
 
 if __name__ == '__main__':
     main()
