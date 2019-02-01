@@ -233,7 +233,7 @@ class keypointFrames:
 """
 BEGIN THREAD
 """
-def op_thread(_opWrapper, tid):
+def op_thread(_opWrapper, op, tid):
     cv2.namedWindow("Synchro - Player {}".format(tid))
     # cv2.namedWindow("Synchro - Player 1")
     cap0 = cv2.VideoCapture(tid)
@@ -363,8 +363,8 @@ def main():
     opWrapper.configure(params)
     opWrapper.start()
 
-    thread_0 = Thread(target=op_thread, args = (opWrapper, 0, ))
-    thread_1 = Thread(target=op_thread, args = (opWrapper, 1, ))
+    thread_0 = Thread(target=op_thread, args = (opWrapper, op, 0, ))
+    thread_1 = Thread(target=op_thread, args = (opWrapper, op, 1, ))
     thread_0.start()
     thread_1.start()
     thread_0.join()
