@@ -362,8 +362,8 @@ def main():
     opWrapper.configure(params)
     opWrapper.start()
 
-    thread_0 = Thread(target=op_thread, args = ([opWrapper,0], ))
-    thread_1 = Thread(target=op_thread, args = ([opWrapper,1], ))
+    thread_0 = Thread(target=op_thread, args = (opWrapper, 0, ))
+    thread_1 = Thread(target=op_thread, args = (opWrapper, 1, ))
     thread_0.start()
     thread_1.start()
     thread_0.join()
