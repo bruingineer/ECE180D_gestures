@@ -12,6 +12,11 @@ from threading import Thread
 import numpy as np 
 import paho.mqtt.client as mqtt
 
+DEBUG_MQTT = False
+DEBUG_MAIN = False
+DEBUG_PROCESS_KEYPOINTS = False
+MQTT_ENABLE = False
+
 def on_connect(client, userdata, flags, rc):
     print("Connected with rc: "+str(rc))
     print("Connection returned result: {}".format(connack_string(rc)))
@@ -295,10 +300,6 @@ def op_thread(_opWrapper, tid):
 END THREAD
 """
 def main():
-    DEBUG_MQTT = False
-    DEBUG_MAIN = False
-    DEBUG_PROCESS_KEYPOINTS = False
-    MQTT_ENABLE = False
 
     # numpy suppress sci notation, set 1 decimal place
     np.set_printoptions(suppress=True)
