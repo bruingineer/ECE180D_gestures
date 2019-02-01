@@ -224,6 +224,75 @@ class keypointFrames:
 
         return False
 
+"""
+BEGIN THREAD
+"""
+def op_thread(_opWrapper, tid):
+    cv2.namedWindow("Synchro - Player {}".format(tid))
+    # cv2.namedWindow("Synchro - Player 1")
+    cap0 = cv2.VideoCapture(tid)
+    # cap1 = cv2.VideoCapture(1)
+
+    if cap0.isOpened():
+        rval0, img0 = cap0.read()
+        print("cap{} open".format(tid))
+    else:
+        rval0 = False
+
+    # if cap1.isOpened():
+    #     rval1, img1 = cap1.read()
+    #     print("cap1 open")
+    # else:
+    #     rval1 = False
+
+
+
+    WIDTH0 = cap0.get(3)
+    HEIGHT0 = cap0.get(4)
+    sep0 = WIDTH0/10
+
+    # WIDTH1 = cap1.get(3)
+    # HEIGHT1 = cap1.get(4)
+    # sep1 = WIDTH1/10
+
+    if DEBUG_MAIN:
+        print("into loop:")
+        
+    print("0 w x h: {0} x {1}".format(WIDTH0,HEIGHT0))
+    # print("1 w x h: {0} x {1}".format(WIDTH1,HEIGHT1))
+
+    if MQTT_ENABLE and DEBUG_MQTT:
+        client.publish(return_topic, payload= ('HELLLOO'), qos=0, retain=False)
+
+    # gesture0 = keypointFrames()
+
+    #while rval and not waiting_for_target:
+    while rval0:
+        # Read new image
+        rval0, img0 = cap0.read()
+
+        # Process Image
+        datum0 = op.Datum()
+        datum0.cvInputData = img0
+        _opWrapper.emplaceAndPop([datum0])        
+
+        # get keypoints and the image with the human skeleton blended on it
+        main_keypoints = datum0.poseKeypoints
+
+        # Display the image
+        flipped0 = cv2.flip(datum0.cvOutputData, 1)
+        cv2.imshow("Synchro - Player {}".format(tid), flipped0)
+
+        # break loop and exit when ESC key is pressed
+        key = cv2.waitKey(20)
+        if key == 27:
+            break
+
+    cap0.release()
+    cv2.destroyWindow("Synchro - Player {}".format(tid))
+"""
+END THREAD
+"""
 def main():
     DEBUG_MQTT = False
     DEBUG_MAIN = False
@@ -292,101 +361,6 @@ def main():
     opWrapper.configure(params)
     opWrapper.start()
 
-    cv2.namedWindow("Synchro - Player 0")
-    cv2.namedWindow("Synchro - Player 1")
-    cap0 = cv2.VideoCapture(0)
-    cap1 = cv2.VideoCapture(1)
-
-    if cap0.isOpened():
-        rval0, img0 = cap0.read()
-        print("cap0 open")
-    else:
-    	rval0 = False
-
-    if cap1.isOpened():
-        rval1, img1 = cap1.read()
-        print("cap1 open")
-    else:
-        rval1 = False
-
-    WIDTH0 = cap0.get(3)
-    HEIGHT0 = cap0.get(4)
-    sep0 = WIDTH0/10
-
-    WIDTH1 = cap1.get(3)
-    HEIGHT1 = cap1.get(4)
-    sep1 = WIDTH1/10
-
-    if DEBUG_MAIN:
-        print("into loop:")
-        
-    print("0 w x h: {0} x {1}".format(WIDTH0,HEIGHT0))
-    print("1 w x h: {0} x {1}".format(WIDTH1,HEIGHT1))
-
-    if MQTT_ENABLE and DEBUG_MQTT:
-        client.publish(return_topic, payload= ('HELLLOO'), qos=0, retain=False)
-
-    gesture0 = keypointFrames()
-    gesture1 = keypointFrames()
-
-    #while rval and not waiting_for_target:
-    while rval0 and rval1:
-        # Read new image
-        rval0, img0 = cap0.read()
-        rval1, img1 = cap1.read()
-
-        # Process Image
-        datum0 = op.Datum()
-        datum0.cvInputData = img0
-        opWrapper.emplaceAndPop([datum0])        
-
-        datum1 = op.Datum()
-        datum1.cvInputData = img1
-        opWrapper.emplaceAndPop([datum1])
-
-        # get keypoints and the image with the human skeleton blended on it
-        main_keypoints = datum0.poseKeypoints
-        keypoints_1 = datum1.poseKeypoints
-
-        # Display the image
-        flipped0 = cv2.flip(datum0.cvOutputData, 1)
-        cv2.imshow("Synchro - Player 0", flipped0)
-        flipped_1 = cv2.flip(datum1.cvOutputData, 1)
-        cv2.imshow("Synchro - Player 1", flipped_1)
-
-        # check for gesture
-        # with more gestures, _target_gesture from MQTT Unity
-        if args[0].gesture is not None:
-            waiting_for_target = False
-            target_gesture = args[0].gesture 
-        if not waiting_for_target and main_keypoints.size > 1:
-            gesture0.add(main_keypoints, WIDTH0, HEIGHT0)
-            # print("checking for: "+target_gesture)
-            if ( gesture0.checkFor(target_gesture) ):
-                # send gesture correct to unity
-                if MQTT_ENABLE:
-                    client.publish(return_topic, payload= ('correct'), qos=0, retain=False)
-                print("{target_gesture}: Correct".format(target_gesture=target_gesture))
-                waiting_for_target = True
-
-        # if using this script for localization
-        if args[0].localization:
-            if main_keypoints.size > 1:
-                nose_x = main_keypoints[0][0][0]
-                region = 10 - int(nose_x/sep)
-            #print(region)
-            if MQTT_ENABLE:
-                client.publish('localization',  payload= (region), qos=0, retain=False)
-
-        # break loop and exit when ESC key is pressed
-        key = cv2.waitKey(20)
-        if key == 27:
-        	break
-
-    cap0.release()
-    cap1.release()
-    cv2.destroyWindow("Synchro - Player 1")
-    cv2.destroyWindow("Synchro - Player 0")
 
 if __name__ == '__main__':
     main()
