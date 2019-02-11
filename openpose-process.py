@@ -228,7 +228,7 @@ def main():
     DEBUG_MQTT = False
     DEBUG_MAIN = False
     DEBUG_PROCESS_KEYPOINTS = False
-    MQTT_ENABLE = False
+    MQTT_ENABLE = True
 
     # numpy suppress sci notation, set 1 decimal place
     np.set_printoptions(suppress=True)
@@ -254,7 +254,7 @@ def main():
     parser.add_argument("--op_dir", default='op_cuda_jose', help="Path to compiled OpenPose library \
         folder which includes the lib, x64/Release, and python folders.")
     parser.add_argument("--gesture", default=None, help="Target Gesture to search for during testing.")
-    parser.add_argument("--localization", default=False, help="Add argument to use this script for localization.")
+    parser.add_argument("--localization", default=True, help="Add argument to use this script for localization.")
     args = parser.parse_known_args()
 
     # Remember to add your installation path here
@@ -293,9 +293,9 @@ def main():
     opWrapper.start()
 
     cv2.namedWindow("Synchro - Player 0")
-    cv2.namedWindow("Synchro - Player 1")
+    # cv2.namedWindow("Synchro - Player 1")
     cap0 = cv2.VideoCapture(0)
-    cap1 = cv2.VideoCapture(1)
+    # cap1 = cv2.VideoCapture(1)
 
     if cap0.isOpened():
         rval0, img0 = cap0.read()
@@ -303,62 +303,62 @@ def main():
     else:
     	rval0 = False
 
-    if cap1.isOpened():
-        rval1, img1 = cap1.read()
-        print("cap1 open")
-    else:
-        rval1 = False
+    # if cap1.isOpened():
+    #     rval1, img1 = cap1.read()
+    #     print("cap1 open")
+    # else:
+    #     rval1 = False
 
     WIDTH0 = cap0.get(3)
     HEIGHT0 = cap0.get(4)
-    sep0 = WIDTH0/10
 
-    WIDTH1 = cap1.get(3)
-    HEIGHT1 = cap1.get(4)
-    sep1 = WIDTH1/10
+    # WIDTH1 = cap1.get(3)
+    # HEIGHT1 = cap1.get(4)
+    # sep1 = WIDTH1/10
 
     if DEBUG_MAIN:
         print("into loop:")
         
     print("0 w x h: {0} x {1}".format(WIDTH0,HEIGHT0))
-    print("1 w x h: {0} x {1}".format(WIDTH1,HEIGHT1))
+    # print("1 w x h: {0} x {1}".format(WIDTH1,HEIGHT1))
 
     if MQTT_ENABLE and DEBUG_MQTT:
         client.publish(return_topic, payload= ('HELLLOO'), qos=0, retain=False)
 
     gesture0 = keypointFrames()
-    gesture1 = keypointFrames()
+    # gesture1 = keypointFrames()
 
     #while rval and not waiting_for_target:
-    while rval0 and rval1:
+    while rval0:
         # Read new image
         rval0, img0 = cap0.read()
-        rval1, img1 = cap1.read()
+        # rval1, img1 = cap1.read()
 
         # Process Image
         datum0 = op.Datum()
         datum0.cvInputData = img0
         opWrapper.emplaceAndPop([datum0])        
 
-        datum1 = op.Datum()
-        datum1.cvInputData = img1
-        opWrapper.emplaceAndPop([datum1])
+        # datum1 = op.Datum()
+        # datum1.cvInputData = img1
+        # opWrapper.emplaceAndPop([datum1])
 
         # get keypoints and the image with the human skeleton blended on it
         main_keypoints = datum0.poseKeypoints
-        keypoints_1 = datum1.poseKeypoints
+        # keypoints_1 = datum1.poseKeypoints
 
         # Display the image
         flipped0 = cv2.flip(datum0.cvOutputData, 1)
         cv2.imshow("Synchro - Player 0", flipped0)
-        flipped_1 = cv2.flip(datum1.cvOutputData, 1)
-        cv2.imshow("Synchro - Player 1", flipped_1)
+        # flipped_1 = cv2.flip(datum1.cvOutputData, 1)
+        # cv2.imshow("Synchro - Player 1", flipped_1)
 
         # check for gesture
         # with more gestures, _target_gesture from MQTT Unity
         if args[0].gesture is not None:
             waiting_for_target = False
             target_gesture = args[0].gesture 
+
         if not waiting_for_target and main_keypoints.size > 1:
             gesture0.add(main_keypoints, WIDTH0, HEIGHT0)
             # print("checking for: "+target_gesture)
@@ -373,7 +373,7 @@ def main():
         if args[0].localization:
             if main_keypoints.size > 1:
                 nose_x = main_keypoints[0][0][0]
-                region = 10 - int(nose_x/sep)
+                region = 10 - int(10*nose_x/WIDTH0)
             #print(region)
             if MQTT_ENABLE:
                 client.publish('localization',  payload= (region), qos=0, retain=False)
@@ -384,8 +384,8 @@ def main():
         	break
 
     cap0.release()
-    cap1.release()
-    cv2.destroyWindow("Synchro - Player 1")
+    # cap1.release()
+    # cv2.destroyWindow("Synchro - Player 1")
     cv2.destroyWindow("Synchro - Player 0")
 
 if __name__ == '__main__':
