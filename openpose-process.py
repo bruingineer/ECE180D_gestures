@@ -254,7 +254,8 @@ def main():
     parser.add_argument("--op_dir", default='op_cuda_jose', help="Path to compiled OpenPose library \
         folder which includes the lib, x64/Release, and python folders.")
     parser.add_argument("--gesture", default=None, help="Target Gesture to search for during testing.")
-    parser.add_argument("--localization", default=True, help="Add argument to use this script for localization.")
+    parser.add_argument("--localization", default=True, help="If True, this enables the localization functionality.")
+    parser.add_argument("--ip", default=None, help="Set the ip of the Mqtt server.")
     args = parser.parse_known_args()
 
     # Remember to add your installation path here
