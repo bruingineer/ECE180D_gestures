@@ -11,6 +11,25 @@ from time import time
 import numpy as np 
 import paho.mqtt.client as mqtt
 
+DEBUG_MQTT = False
+DEBUG_MAIN = False
+DEBUG_PROCESS_KEYPOINTS = False
+MQTT_ENABLE = True
+
+waiting_for_target = True
+
+# mqtt setup
+if MQTT_ENABLE:
+    ip = "131.179.28.219"
+    port = 1883
+
+    target_topic = 'gesture'
+    return_topic = 'gesture_correct'
+    target_gesture = "stop"
+
+    client = connect_to_server(ip, port)
+    client.loop_start()
+
 def on_connect(client, userdata, flags, rc):
     print("Connected with rc: "+str(rc))
     print("Connection returned result: {}".format(connack_string(rc)))
@@ -225,28 +244,10 @@ class keypointFrames:
         return False
 
 def main():
-    DEBUG_MQTT = False
-    DEBUG_MAIN = False
-    DEBUG_PROCESS_KEYPOINTS = False
-    MQTT_ENABLE = True
 
     # numpy suppress sci notation, set 1 decimal place
     np.set_printoptions(suppress=True)
     np.set_printoptions(precision=1)
-
-    waiting_for_target = True
-
-    # mqtt setup
-    if MQTT_ENABLE:
-        ip = "131.179.28.219"
-        port = 1883
-
-        target_topic = 'gesture'
-        return_topic = 'gesture_correct'
-        target_gesture = "stop"
-
-        client = connect_to_server(ip, port)
-        client.loop_start()
 
     # Flags
     parser = argparse.ArgumentParser()
