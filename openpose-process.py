@@ -20,15 +20,12 @@ waiting_for_target = True
 
 # mqtt setup
 if MQTT_ENABLE:
-    ip = "131.179.28.219"
+    ip = "0"
     port = 1883
 
     target_topic = 'gesture'
     return_topic = 'gesture_correct'
     target_gesture = "stop"
-
-    client = connect_to_server(ip, port)
-    client.loop_start()
 
 def on_connect(client, userdata, flags, rc):
     print("Connected with rc: "+str(rc))
@@ -290,6 +287,10 @@ def main():
         elif "--" in curr_item and "--" not in next_item:
             key = curr_item.replace('-','')
             if key not in params: params[key] = next_item
+
+    # connect mqtt server
+    client = connect_to_server(args[0].ip, port)
+    client.loop_start()
 
     # Starting OpenPose
     opWrapper = op.WrapperPython()
