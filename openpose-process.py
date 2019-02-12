@@ -11,7 +11,7 @@ from time import time
 import numpy as np 
 import paho.mqtt.client as mqtt
 
-DEBUG_MQTT = False
+DEBUG_MQTT = True
 DEBUG_MAIN = False
 DEBUG_PROCESS_KEYPOINTS = False
 MQTT_ENABLE = True
@@ -208,6 +208,8 @@ class keypointFrames:
                     if (self.keypoints[0,body25['RWrist'],1] < self.keypoints[0,body25['Nose'],1]):
                         if (self.keypoints[0,body25['LWrist'],1] < self.keypoints[0,body25['Nose'],1]):
                             isHandsCorrect = True
+
+        return isHandsCorrect and isElbowsCorrect
 
     def isRaiseLeftHand(self):
         indexes = [body25[x] for x in ['LElbow','LShoulder','LWrist']]
