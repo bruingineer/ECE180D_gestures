@@ -5,10 +5,10 @@ Gestures portion of the Synchro ECE180 Project
 Code used in the python gesture scripts:
 [CMU OpenPose - Python api](https://github.com/CMU-Perceptual-Computing-Lab/openpose)
 
-###Potential bugs:
+### Potential bugs:
 * single player game seems to be working correctly.
 
-###Improvements:
+### Improvements:
 * normalize pose dimensions to skeleton size in frame
 * add more dynamic gestures
 
