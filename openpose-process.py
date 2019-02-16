@@ -12,7 +12,7 @@ import paho.mqtt.client as mqtt
 
 # contants to enable debug options
 # TODO: add these to the arguments
-DEBUG_MQTT = True
+DEBUG_MQTT = False
 DEBUG_MAIN = False
 DEBUG_PROCESS_KEYPOINTS = False
 MQTT_ENABLE = True
@@ -21,7 +21,7 @@ waiting_for_target = True
 
 # mqtt setup
 if MQTT_ENABLE:
-    ip = "0"
+    ip = "131.179.29.167"
     port = 1883
 
     # mqtt topics for gestures
@@ -40,15 +40,19 @@ def on_connect(client, userdata, flags, rc):
 # on message callback for mqtt
 def on_message(client, userdata, msg):
     print("msp received: "+msg.topic+" "+str(msg.payload))
+
     # if the message is on the gesture topic, process it
     if msg.topic == target_topic:
+        #print("HELLOO")
         global target_gesture
         global waiting_for_target
+        #global DEBUG_MQTT
         target_gesture = str(msg.payload)
         
         if DEBUG_MQTT:
             print("DEBUG_MQTT * on_message: message from {}\ntarget_gesture={}".format(msg.topic, target_gesture))
 
+        print(target_gesture)
         if target_gesture == "stop":
             waiting_for_target = True
         else:
@@ -128,15 +132,17 @@ class keypointFrames:
         self.HEIGHT = inputHEIGHT
 
     def checkFor(self, _target_gesture):
+        #print ("CheckFor " + _target_gesture)
+        _target_gesture = _target_gesture.lower()
         if _target_gesture == "tpose":
             return self.isTPose()
         elif _target_gesture == "fieldgoal":
             return self.isFieldGoal()
-        elif _target_gesture == "rightHandWave":
+        elif _target_gesture == "righthandwave":
             return self.isRightHandRightToLeftWave()
-        elif _target_gesture == "leftHandRaise":
+        elif _target_gesture == "lefthandraise":
             return self.isRaiseLeftHand()
-        elif _target_gesture == "rightHandRaise":
+        elif _target_gesture == "righthandraise":
             return self.isRaiseRightHand()
         else:
             print("gesture "+_target_gesture+" not recognized.")
@@ -152,7 +158,7 @@ class keypointFrames:
             frame = self.last_3_frames[i][1]
             x.append(frame[0,body25['RWrist'],0])
             y.append(frame[0,body25['RWrist'],1])
-        
+
         if DEBUG_PROCESS_KEYPOINTS:
             print("Wave - processed x: {0}".format(x))
         
@@ -174,6 +180,7 @@ class keypointFrames:
     # checks for arms straight out from sides, using passed in keypoints to class
     # returns true if in TPose
     def isTPose(self):
+        #print ("checking for tpose")
         # 1D array: y of [body25 1 thru 7]
         parts = [body25[x] for x in ['RWrist','RElbow','RShoulder','Neck','LShoulder','LElbow','LWrist']]
 
@@ -265,6 +272,7 @@ class keypointFrames:
         return False
 
 def main():
+
     global waiting_for_target
     global target_gesture
 
@@ -274,12 +282,12 @@ def main():
 
     # Flags
     parser = argparse.ArgumentParser()
-    # parser.add_argument("--image_path", default="../../../examples/media/COCO_val2014_000000000192.jpg", help="Process an image. Read all standard formats (jpg, png, bmp, etc.).")
     parser.add_argument("--op_dir", default='op_cuda_jose', help="Path to compiled OpenPose library \
         folder which includes the lib, x64/Release, and python folders.")
     parser.add_argument("--gesture", default=None, help="Target Gesture to search for during testing.")
     parser.add_argument("--localization", default=True, help="If True, this enables the localization functionality.")
     parser.add_argument("--ip", default=None, help="Set the ip of the Mqtt server.")
+
     args = parser.parse_known_args()
 
     # Remember to add your installation path here
@@ -292,7 +300,6 @@ def main():
         import pyopenpose as op 
     except:
         raise Exception('Error: OpenPose library could not be found. Did you enable `BUILD_PYTHON` in CMake and have this Python script in the right folder?')
-
 
     # Custom Params (refer to include/openpose/flags.hpp for more parameters)
     params = dict()
@@ -387,7 +394,10 @@ def main():
             waiting_for_target = False
             target_gesture = args[0].gesture 
 
+        #print ("waiting for target " + str(waiting_for_target))
+        #print(main_keypoints.size)
         if not waiting_for_target and main_keypoints.size > 1:
+            #print("about to call checkFor")
             gesture0.add(main_keypoints, WIDTH0, HEIGHT0)
             if DEBUG_MAIN:
                 print("main - checking for: {}".format(target_gesture))
@@ -403,9 +413,10 @@ def main():
             if main_keypoints.size > 1:
                 nose_x = main_keypoints[0][0][0]
                 region = 10 - int(10*nose_x/WIDTH0)
-            #print(region)
+            # print(region)
             if MQTT_ENABLE:
                 client.publish('localization',  payload= (region), qos=0, retain=False)
+                print (region)
 
         # break loop and exit when ESC key is pressed
         key = cv2.waitKey(20)
